@@ -47,7 +47,7 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r){
     /*读文件*/
     ngx_buf_t *file_buf;
     file_buf = ngx_palloc(r->pool, sizeof(ngx_buf_t));
-    u_char* file_name = (u_char*) "/Users/liuyang/test.txt";
+    u_char* file_name = (u_char*) "/tmp/test.txt";
     file_buf->in_file = 1;
     file_buf->file = ngx_palloc(r->pool, sizeof(ngx_file_t));
     file_buf->file->fd   = ngx_open_file(file_name, NGX_FILE_RDONLY|NGX_FILE_NONBLOCK, NGX_FILE_OPEN, 0);
