@@ -2,6 +2,7 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
+#include "ngx_http_mytest_module.h"
 
 void ngx_pool_cleanup_file_m(void *data);
 
@@ -118,22 +119,51 @@ void ngx_pool_cleanup_file_m(void *data) {
     }
 }
 
-static char* ngx_http_mytest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
-    ngx_http_core_loc_conf_t *clcf;
-    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
-    clcf->handler = ngx_http_mytest_handler;
+//自定义配置解析函数
+//static char* ngx_http_mytest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
+//    ngx_http_core_loc_conf_t *clcf;
+//    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
+//    clcf->handler = ngx_http_mytest_handler;
+//
+//    return NGX_CONF_OK;
+//}
 
-    return NGX_CONF_OK;
+static void* ngx_http_mytest_create_loc_conf(ngx_conf_t *cf)
+{
+    ngx_http_mytest_conf_t *mycf;
+    mycf = (ngx_http_mytest_conf_t *)ngx_pcalloc(cf->pool, 
+            sizeof(ngx_http_mytest_conf_t)); 
+
+    if (mycf == NULL) {
+        return NULL;
+    }
+
+    mycf->my_flag = NGX_CONF_UNSET;
+    //mycf­->my_num = NGX_CONF_UNSET;
+    //mycf­->my_str_array = NGX_CONF_UNSET_PTR;
+    //mycf­->my_keyval = NULL;
+    //mycf­->my_off = NGX_CONF_UNSET;
+    //mycf­->my_msec = NGX_CONF_UNSET_MSEC;
+    //mycf­->my_sec = NGX_CONF_UNSET;
+    //mycf­->my_size = NGX_CONF_UNSET_SIZE;
+    mycf->my_num = NGX_CONF_UNSET;
+    mycf->my_str_array = NGX_CONF_UNSET_PTR;
+    mycf->my_keyval = NULL;
+    mycf->my_off = NGX_CONF_UNSET;
+    mycf->my_msec = NGX_CONF_UNSET_MSEC;
+    mycf->my_sec = NGX_CONF_UNSET;
+    mycf->my_size = NGX_CONF_UNSET_SIZE;
+    return mycf;
 }
-
 
 static ngx_command_t ngx_http_mytest_commands[] = {
     { ngx_string("mytest"),
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF |
-      NGX_CONF_NOARGS,
-      ngx_http_mytest,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
+      NGX_CONF_FLAG,
+      //ngx_http_mytest,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,  //store struct params parsed by create_loc_conf
+      offsetof(ngx_http_mytest_conf_t, my_flag),
       NULL },
     ngx_null_command
 };
@@ -148,7 +178,7 @@ static ngx_http_module_t ngx_http_mytest_module_ctx = {
     NULL,
     NULL,
 
-    NULL,
+    ngx_http_mytest_create_loc_conf,
     NULL,
 };
 
