@@ -17,7 +17,7 @@ static char* ngx_http_mytest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
 
 static ngx_command_t ngx_http_mytest_commands[] = {
     { 
-        ngx_string("mytest_set_echo_string"),
+        ngx_string("ly_echo"),
         NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF |
         NGX_CONF_TAKE1,
         ngx_conf_set_str_slot,
@@ -26,7 +26,7 @@ static ngx_command_t ngx_http_mytest_commands[] = {
         NULL 
     },
     { 
-        ngx_string("mytest_run"),
+        ngx_string("ly_run"),
         NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | 
         NGX_CONF_NOARGS,
         ngx_http_mytest,
@@ -89,62 +89,63 @@ ngx_module_t ngx_http_mytest_module = {
     NGX_MODULE_V1_PADDING
 };
 
-static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r){
-    ngx_chain_t echo_out;
-    ngx_chain_t file_out;
-    if (! (r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD)) ) {
-        return NGX_HTTP_NOT_ALLOWED;
-    }
-
-    ngx_int_t rc = ngx_http_discard_request_body(r);
-    if( rc != NGX_OK ) {
-        return rc;
-    }
+/*获取ly_echo 指令字符串*/
+static ngx_str_t get_ly_echo_set(ngx_http_request_t *r) {
 
     ngx_http_mytest_conf_t *elcf;
     elcf = ngx_http_get_module_loc_conf(r, ngx_http_mytest_module);
 
-    ngx_buf_t *echo_buf;
-    echo_buf = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
-    if (echo_buf == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    echo_buf->pos = elcf->m_str.data;
-    echo_buf->last = elcf->m_str.data + elcf->m_str.len;
-    echo_buf->memory = 1;
+    return elcf->m_str;
+}
 
-    echo_out.buf = echo_buf;
-    echo_out.next = &file_out;
+static ngx_chain_t get_echo_body_out(ngx_http_request_t *r, ngx_int_t *content_len,
+                                        unsigned last) {
 
-    //ngx_str_t response = ngx_string("This is liuyang's test module");
-    //ngx_str_t response2 = ngx_string("this is the second buf");
+    ngx_buf_t *buf;
+    ngx_str_t echo_str = get_ly_echo_set(r);
 
-    /*body设置*/
-    //ngx_buf_t *b;
-    //b = ngx_create_temp_buf(r->pool, response.len);
-    //if (b == NULL) {
+    buf = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
+    //if (buf == NULL) {
+    //    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    //}
+    buf->pos = echo_str.data;
+    buf->last = echo_str.data + echo_str.len;
+    buf->memory = 1;
+    buf->last_buf = last;
+
+    ngx_chain_t out;
+    out.buf = buf;
+    out.next = NULL;
+
+    return out;
+}
+
+/*获取测试字符串body*/
+static ngx_chain_t get_test_str_out(ngx_http_request_t *r, ngx_int_t *content_len,
+                                    unsigned last) {
+
+    ngx_buf_t *buf;
+    ngx_str_t response = ngx_string("This is liuyang's test module");
+    buf = ngx_create_temp_buf(r->pool, response.len);
+    //if (buf == NULL) {
     //    return NGX_HTTP_INTERNAL_SERVER_ERROR;
     //}
 
-    //ngx_memcpy(b->pos, response.data, response.len);
-    //b->last = b->pos + response.len;
+    ngx_memcpy(buf->pos, response.data, response.len);
+    buf->last = buf->pos + response.len;
+    buf->last_buf = last;
 
+    ngx_chain_t out;
+    out.buf = buf;
+    out.next = NULL;
 
-    //ngx_buf_t *c;
-    //c = ngx_create_temp_buf(r->pool, response2.len);
-    //ngx_memcpy(c->pos, response2.data, response2.len);
-    //c->last = c->pos + response2.len;
-    //c->last_buf = 1;
+    return out;
+}
 
-    //ngx_chain_t out1;
-    //out1.buf = c;
-    //out1.next = NULL;
+/*获取文件body*/
+static ngx_chain_t get_file_body_out(ngx_http_request_t *r, ngx_int_t *content_len,
+                                        unsigned last) {
 
-    //ngx_chain_t out;
-    //out.buf = b;
-    //out.next = &out1;
-
-    /*读文件*/
     ngx_buf_t *file_buf;
     file_buf = ngx_palloc(r->pool, sizeof(ngx_buf_t));
     u_char* file_name = (u_char*) "/tmp/test.txt";
@@ -155,34 +156,67 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r){
     file_buf->file->name.data = file_name;
     file_buf->file->name.len  = strlen((const char*)file_name);
 
-    if (file_buf->file->fd <= 0) {
-        return NGX_HTTP_NOT_FOUND;
-    }
+    //if (file_buf->file->fd <= 0) {
+    //    return NGX_HTTP_NOT_FOUND;
+    //}
 
-    if (ngx_file_info(file_name, &file_buf->file->info) == NGX_FILE_ERROR) {
-         return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    //if (ngx_file_info(file_name, &file_buf->file->info) == NGX_FILE_ERROR) {
+    //     return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    //}
 
     file_buf->file_pos = 0;
     file_buf->file_last = file_buf->file->info.st_size;
-    file_buf->last_buf = 1;
+    file_buf->last_buf = last;
 
     /*清理文件句柄*/
     ngx_pool_cleanup_t* cln = ngx_pool_cleanup_add(r->pool,
                                 sizeof(ngx_pool_cleanup_file_t));
-    if (cln == NULL) {
-        return  NGX_ERROR;
-    }
+    //if (cln == NULL) {
+    //    return  NGX_ERROR;
+    //}
     cln->handler = ngx_pool_cleanup_file_m;
     ngx_pool_cleanup_file_t *clnf = cln->data;
     clnf->fd   = file_buf->file->fd;
     clnf->name = file_buf->file->name.data;
     clnf->log  = r->pool->log;
 
+    ngx_chain_t out;
+    out.buf = file_buf;
+    out.next = NULL;
+
+    return out;
+}
+
+static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r){
+    if (! (r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD)) ) {
+        return NGX_HTTP_NOT_ALLOWED;
+    }
+
+    ngx_int_t rc = ngx_http_discard_request_body(r);
+    if( rc != NGX_OK ) {
+        return rc;
+    }
+
+    ngx_int_t temp_len = 0;
+    ngx_int_t content_len = 0;
+
+    ngx_chain_t out_str, out_echo, out_file;
+    out_str = get_test_str_out(r, &temp_len, 0);
+    out_str.next = &out_echo;
+    content_len += temp_len;
+
+    out_echo = get_echo_body_out(r, &temp_len, 0);
+    out_echo.next = &out_file;
+    content_len += temp_len;
+
+    out_file = get_file_body_out(r, &temp_len, 1);
+    out_echo.next = NULL;
+    content_len += temp_len;
+
     /*头部设置 注意content-length的设置*/
     ngx_str_t type = ngx_string("text/plain");
     r->headers_out.status = NGX_HTTP_OK;
-    r->headers_out.content_length_n = file_buf->file->info.st_size + elcf->m_str.len;
+    r->headers_out.content_length_n = content_len;
     r->headers_out.content_type = type;
 
     /*设置自定义header头*/
@@ -203,11 +237,8 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r){
         return rc;
     }
 
-    file_out.buf  = file_buf;
-    file_out.next = NULL;
-
     /*发送body*/
-    return ngx_http_output_filter(r, &echo_out);
+    return ngx_http_output_filter(r, &out_str);
 }
 
 void ngx_pool_cleanup_file_m(void *data) {
