@@ -90,61 +90,66 @@ ngx_module_t ngx_http_mytest_module = {
 };
 
 /*获取ly_echo 指令字符串*/
-static ngx_str_t get_ly_echo_set(ngx_http_request_t *r) {
+//static ngx_str_t get_ly_echo_set(ngx_http_request_t *r) {
+//
+//    ngx_http_mytest_conf_t *elcf;
+//    elcf = ngx_http_get_module_loc_conf(r, ngx_http_mytest_module);
+//
+//    return elcf->m_str;
+//}
 
-    ngx_http_mytest_conf_t *elcf;
-    elcf = ngx_http_get_module_loc_conf(r, ngx_http_mytest_module);
-
-    return elcf->m_str;
-}
-
-static ngx_chain_t get_echo_body_out(ngx_http_request_t *r, ngx_int_t *content_len,
-                                        unsigned last) {
-
-    ngx_buf_t *buf;
-    ngx_str_t echo_str = get_ly_echo_set(r);
-
-    buf = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
-    //if (buf == NULL) {
-    //    return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    //}
-    ngx_memcpy(buf->pos, echo_str.data, echo_str.len);
-    buf->last = buf->pos + echo_str.len;
-    buf->memory = 1;
-    buf->last_buf = last;
-
-    *content_len += echo_str.len;
-
-    ngx_chain_t out;
-    out.buf = buf;
-    out.next = NULL;
-
-    return out;
-}
+//static ngx_chain_t get_echo_body_out(ngx_http_request_t *r, ngx_int_t *content_len,
+//                                        unsigned last) {
+//
+//    ngx_buf_t *buf;
+//    ngx_http_mytest_conf_t *elcf;
+//    elcf = ngx_http_get_module_loc_conf(r, ngx_http_mytest_module);
+//    ngx_str_t echo_str = elcf->m_str;
+//    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "m_str: %*s", echo_str.len, echo_str.data);
+//    buf = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
+//    //if (buf == NULL) {
+//    //    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+//    //}
+//    ngx_memcpy(buf->pos, echo_str.data, echo_str.len);
+//    buf->last = buf->pos + echo_str.len;
+//    buf->memory = 1;
+//    buf->last_buf = last;
+//
+//    *content_len += echo_str.len;
+//
+//    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "buf->pos:%*s",
+//                    echo_str.len, buf->pos);
+//
+//    ngx_chain_t out;
+//    out.buf = buf;
+//    out.next = NULL;
+//
+//    return out;
+//}
 
 /*获取测试字符串body*/
-static ngx_chain_t get_test_str_out(ngx_http_request_t *r, ngx_int_t *content_len,
-                                    unsigned last) {
-
-    ngx_buf_t *buf;
-    ngx_str_t response = ngx_string("This is liuyang's test module");
-    buf = ngx_create_temp_buf(r->pool, response.len);
-    //if (buf == NULL) {
-    //    return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    //}
-
-    ngx_memcpy(buf->pos, response.data, response.len);
-    buf->last = buf->pos + response.len;
-    buf->last_buf = last;
-    
-    *content_len += response.len;
-
-    ngx_chain_t out;
-    out.buf = buf;
-    out.next = NULL;
-
-    return out;
-}
+//static ngx_chain_t get_test_str_out(ngx_http_request_t *r, ngx_int_t *content_len,
+//                                    unsigned last) {
+//
+//    ngx_buf_t *buf;
+//    ngx_str_t response = ngx_string("This is liuyang's test module");
+//    buf = ngx_create_temp_buf(r->pool, response.len);
+//    //if (buf == NULL) {
+//    //    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+//    //}
+//
+//    ngx_memcpy(buf->pos, response.data, response.len);
+//    buf->last = buf->pos + response.len;
+//    buf->last_buf = last;
+//    
+//    *content_len += response.len;
+//
+//    ngx_chain_t out;
+//    out.buf = buf;
+//    out.next = NULL;
+//
+//    return out;
+//}
 
 /*获取文件body*/
 //static ngx_chain_t get_file_body_out(ngx_http_request_t *r, ngx_int_t *content_len,
@@ -201,22 +206,34 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r){
         return rc;
     }
 
-    ngx_int_t temp_len = 0;
+    //ngx_int_t temp_len = 0;
     ngx_int_t content_len = 0;
 
-    ngx_chain_t out_str, out_echo;//, out_file;
-    out_str = get_test_str_out(r, &temp_len, 0);
-    out_str.next = &out_echo;
-    content_len += temp_len;
+    //ngx_chain_t out_str, out_echo;//, out_file;
+    //out_str = get_test_str_out(r, &temp_len, 0);
+    //out_str.next = &out_echo;
+    //content_len += temp_len;
 
-    out_echo = get_echo_body_out(r, &temp_len, 1);
-    out_echo.next = NULL;
-    content_len += temp_len;
+    //out_echo = get_echo_body_out(r, &temp_len, 1);
+    //out_echo.next = NULL;
+    //content_len += temp_len;
 
     //out_file = get_file_body_out(r, &temp_len, 1);
     //out_echo.next = NULL;
     //content_len += temp_len;
 
+    ngx_chain_t out_echo;
+    ngx_http_mytest_conf_t *elcf = ngx_http_get_module_loc_conf(r,ngx_http_mytest_module);
+    ngx_buf_t *b = ngx_palloc(r->pool, sizeof(ngx_buf_t));
+    b->pos = elcf->m_str.data;
+    b->last = elcf->m_str.data + (elcf->m_str.len);
+    b->memory = 1;
+    b->last_buf = 1;
+
+    out_echo.buf = b;
+    out_echo.next = NULL;
+
+    content_len = elcf->m_str.len;
     /*头部设置 注意content-length的设置*/
     ngx_str_t type = ngx_string("text/plain");
     r->headers_out.status = NGX_HTTP_OK;
@@ -242,7 +259,7 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r){
     }
 
     /*发送body*/
-    return ngx_http_output_filter(r, &out_str);
+    return ngx_http_output_filter(r, &out_echo);
 }
 
 void ngx_pool_cleanup_file_m(void *data) {
