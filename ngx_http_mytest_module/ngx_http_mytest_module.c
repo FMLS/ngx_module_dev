@@ -152,49 +152,52 @@ ngx_module_t ngx_http_mytest_module = {
 //}
 
 /*获取文件body*/
-//static ngx_chain_t get_file_body_out(ngx_http_request_t *r, ngx_int_t *content_len,
-//                                        unsigned last) {
-//
-//    ngx_buf_t *file_buf;
-//    file_buf = ngx_palloc(r->pool, sizeof(ngx_buf_t));
-//    u_char* file_name = (u_char*) "/tmp/test.txt";
-//    file_buf->in_file = 1;
-//    file_buf->file = ngx_palloc(r->pool, sizeof(ngx_file_t));
-//    file_buf->file->fd   = ngx_open_file(file_name, NGX_FILE_RDONLY|NGX_FILE_NONBLOCK, NGX_FILE_OPEN, 0);
-//    file_buf->file->log  = r->connection->log;
-//    file_buf->file->name.data = file_name;
-//    file_buf->file->name.len  = strlen((const char*)file_name);
-//
-//    //if (file_buf->file->fd <= 0) {
-//    //    return NGX_HTTP_NOT_FOUND;
-//    //}
-//
-//    //if (ngx_file_info(file_name, &file_buf->file->info) == NGX_FILE_ERROR) {
-//    //     return NGX_HTTP_INTERNAL_SERVER_ERROR;
-//    //}
-//
-//    file_buf->file_pos = 0;
-//    file_buf->file_last = file_buf->file->info.st_size;
-//    file_buf->last_buf = last;
-//
-//    /*清理文件句柄*/
-//    ngx_pool_cleanup_t* cln = ngx_pool_cleanup_add(r->pool,
-//                                sizeof(ngx_pool_cleanup_file_t));
-//    //if (cln == NULL) {
-//    //    return  NGX_ERROR;
-//    //}
-//    cln->handler = ngx_pool_cleanup_file_m;
-//    ngx_pool_cleanup_file_t *clnf = cln->data;
-//    clnf->fd   = file_buf->file->fd;
-//    clnf->name = file_buf->file->name.data;
-//    clnf->log  = r->pool->log;
-//
-//    ngx_chain_t out;
-//    out.buf = file_buf;
-//    out.next = NULL;
-//
-//    return out;
-//}
+static ngx_chain_t get_file_body_out(ngx_http_request_t *r, ngx_int_t *content_len,
+                                        unsigned last) {
+
+    ngx_buf_t *file_buf;
+    file_buf = ngx_palloc(r->pool, sizeof(ngx_buf_t));
+    u_char* file_name = (u_char*) "/tmp/test.txt";
+    file_buf->in_file = 1;
+    file_buf->file = ngx_palloc(r->pool, sizeof(ngx_file_t));
+    file_buf->file->fd   = ngx_open_file(file_name, NGX_FILE_RDONLY|NGX_FILE_NONBLOCK, NGX_FILE_OPEN, 0);
+    file_buf->file->log  = r->connection->log;
+    file_buf->file->name.data = file_name;
+    file_buf->file->name.len  = strlen((const char*)file_name);
+
+    //if (file_buf->file->fd <= 0) {
+    //    return NGX_HTTP_NOT_FOUND;
+    //}
+
+    //if (ngx_file_info(file_name, &file_buf->file->info) == NGX_FILE_ERROR) {
+    //     return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    //}
+
+    ngx_file_info(file_name, &file_buf->file->info);
+
+    file_buf->file_pos = 0;
+    file_buf->file_last = file_buf->file->info.st_size;
+    file_buf->last_buf = last;
+
+    *content_len += file_buf->file->info.st_size;
+    /*清理文件句柄*/
+    ngx_pool_cleanup_t* cln = ngx_pool_cleanup_add(r->pool,
+                                sizeof(ngx_pool_cleanup_file_t));
+    //if (cln == NULL) {
+    //    return  NGX_ERROR;
+    //}
+    cln->handler = ngx_pool_cleanup_file_m;
+    ngx_pool_cleanup_file_t *clnf = cln->data;
+    clnf->fd   = file_buf->file->fd;
+    clnf->name = file_buf->file->name.data;
+    clnf->log  = r->pool->log;
+
+    ngx_chain_t out;
+    out.buf = file_buf;
+    out.next = NULL;
+
+    return out;
+}
 
 static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r){
     if (! (r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD)) ) {
@@ -206,7 +209,7 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r){
         return rc;
     }
 
-    //ngx_int_t temp_len = 0;
+    ngx_int_t temp_len = 0;
     ngx_int_t content_len = 0;
 
     //ngx_chain_t out_str, out_echo;//, out_file;
@@ -222,18 +225,22 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r){
     //out_echo.next = NULL;
     //content_len += temp_len;
 
-    ngx_chain_t out_echo;
+    ngx_chain_t out_echo, out_file;
     ngx_http_mytest_conf_t *elcf = ngx_http_get_module_loc_conf(r,ngx_http_mytest_module);
     ngx_buf_t *b = ngx_palloc(r->pool, sizeof(ngx_buf_t));
     b->pos = elcf->m_str.data;
     b->last = elcf->m_str.data + (elcf->m_str.len);
     b->memory = 1;
-    b->last_buf = 1;
+    b->last_buf = 0;
+    content_len += elcf->m_str.len;
 
     out_echo.buf = b;
-    out_echo.next = NULL;
+    out_echo.next = &out_file;
 
-    content_len = elcf->m_str.len;
+    out_file = get_file_body_out(r, &temp_len, 1);
+    out_file.next = NULL;
+    content_len += temp_len; 
+
     /*头部设置 注意content-length的设置*/
     ngx_str_t type = ngx_string("text/plain");
     r->headers_out.status = NGX_HTTP_OK;
