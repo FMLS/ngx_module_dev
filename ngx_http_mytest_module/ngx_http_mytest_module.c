@@ -55,6 +55,23 @@ static void* ngx_http_mytest_create_loc_conf(ngx_conf_t *cf)
     mycf->my_msec = NGX_CONF_UNSET_MSEC;
     mycf->my_sec = NGX_CONF_UNSET;
     mycf->my_size = NGX_CONF_UNSET_SIZE;
+
+    mycf->upstream.connect_timeout = 60000;
+    mycf->upstream.send_timeout    = 60000;
+    mycf->upstream.read_timeout    = 60000;
+    mycf->upstream.store_access    = 0600;
+    mycf->upstream.buffering       = 0;
+    mycf->upstream.bufs.num = 8;
+    mycf->upstream.bufs.size = ngx_pagesize;
+    mycf->upstream.buffer_size = 2 * ngx_pagesize;
+    mycf->upstream.busy_buffers_size = 2 * ngx_pagesize;
+    mycf->upstream.temp_file_write_size = 2 * ngx_pagesize;
+    mycf->upstream.max_temp_file_size = 1024 * 1024 * 1024;
+    
+    mycf->upstream.hide_headers = NGX_CONF_UNSET_PTR;
+    mycf->upstream.pass_headers = NGX_CONF_UNSET_PTR;
+
+
     return mycf;
 }
 
@@ -276,4 +293,29 @@ void ngx_pool_cleanup_file_m(void *data) {
         ngx_log_error(NGX_LOG_ALERT, c->log, ngx_errno,
                         ngx_close_file_n"\"%s\" failed", c->name);
     }
+}
+
+static ngx_int_t mytest_upstream_create_request(ngx_http_request_t * r) {
+
+    static ngx_str_t backendQueryLine = 
+        ngx_string("GET /searchq=%V HTTP/1.1\r\nHOST: www.google.com\r\nConnection: close\r\n\r\n");
+        ngx_int_t queryLineLen = backendQueryLine.len + r->args.len - 2;
+        ngx_buf_t *b = ngx_create_temp_buf(r->pool, queryLineLen);
+        if (b == NULL) {
+            return NGX_ERROR;
+        }
+        b->last = b->pos + queryLineLen;
+        ngx_snprintf(b->pos, queryLineLen,
+            (char*)backendQueryLine.data, &r->args);
+        r->upstream->request_bufs = ngx_alloc_chain_link(r->pool);
+        if (r->upstream->request_bufs == NULL) {
+            return NGX_ERROR;
+        }
+        r->upstream->request_bufs->buf = b;
+        r->upstream->request_bufs->next = NULL;
+        r->upstream->request_sent = 0;
+        r->upstream->header_sent = 0;
+        r->header_hash = 1;
+        
+        return NGX_OK;
 }

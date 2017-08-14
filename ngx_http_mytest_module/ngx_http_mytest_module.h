@@ -20,4 +20,15 @@ typedef struct {
     ngx_http_upstream_t upstream;
 } ngx_http_mytest_conf_t;
 
+//typedef struct {
+//    ngx_unit_t code;
+//    ngx_uint_t count;
+//    u_char     *start;
+//    u_char     *end;
+//} ngx_http_status_t;
+
+typedef struct {
+    ngx_http_status_t status;
+} ngx_http_mytest_ctx_t;
+
 #endif
