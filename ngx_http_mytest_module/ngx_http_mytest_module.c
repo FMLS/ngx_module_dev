@@ -299,23 +299,77 @@ static ngx_int_t mytest_upstream_create_request(ngx_http_request_t * r) {
 
     static ngx_str_t backendQueryLine = 
         ngx_string("GET /searchq=%V HTTP/1.1\r\nHOST: www.google.com\r\nConnection: close\r\n\r\n");
-        ngx_int_t queryLineLen = backendQueryLine.len + r->args.len - 2;
-        ngx_buf_t *b = ngx_create_temp_buf(r->pool, queryLineLen);
-        if (b == NULL) {
-            return NGX_ERROR;
-        }
-        b->last = b->pos + queryLineLen;
-        ngx_snprintf(b->pos, queryLineLen,
-            (char*)backendQueryLine.data, &r->args);
-        r->upstream->request_bufs = ngx_alloc_chain_link(r->pool);
-        if (r->upstream->request_bufs == NULL) {
-            return NGX_ERROR;
-        }
-        r->upstream->request_bufs->buf = b;
-        r->upstream->request_bufs->next = NULL;
-        r->upstream->request_sent = 0;
-        r->upstream->header_sent = 0;
-        r->header_hash = 1;
+
+    ngx_int_t queryLineLen = backendQueryLine.len + r->args.len - 2;
+    ngx_buf_t *b = ngx_create_temp_buf(r->pool, queryLineLen);
+    if (b == NULL) {
+        return NGX_ERROR;
+    }
+    b->last = b->pos + queryLineLen;
+    ngx_snprintf(b->pos, queryLineLen,
+        (char*)backendQueryLine.data, &r->args);
+    r->upstream->request_bufs = ngx_alloc_chain_link(r->pool);
+    if (r->upstream->request_bufs == NULL) {
+        return NGX_ERROR;
+    }
+    r->upstream->request_bufs->buf = b;
+    r->upstream->request_bufs->next = NULL;
+    r->upstream->request_sent = 0;
+    r->upstream->header_sent = 0;
+    r->header_hash = 1;
         
+    return NGX_OK;
+}
+
+static char* ngx_http_mytest_merge_loc_conf(ngx_conf_t * cf, void * parent, void *child) {
+    ngx_http_mytest_conf_t *prev = (ngx_http_mytest_conf_t *)parent;
+    ngx_http_mytest_conf_t *conf = (ngx_http_mytest_conf_t *)child;
+
+    ngx_hash_init_t = hash;
+    hash.max_size = 100;
+    hash.bucket_size = 1024;
+    hash.name = "proxy_headers_hash";
+
+    if (ngx_http_upstream_hide_headers_hash(cf, &conf->upstream, &prev->upstream,
+            ngx_http_proxy_hide_headers, &hash) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
+
+    return NGX_CONF_OK;
+}
+
+/*解析http响应头*/
+static ngx_int_t mytest_process_status_line(ngx_http_request_t *r) {
+    size_t len;
+    ngx_int_t rc;
+    ngx_http_upstream_t *u;
+    ngx_http_mytest_ctx_t *ctx = ngx_http_get_module_ctx(r, ngx_http_mytest_module);
+    if (ctx == NULL) {
+        return NGX_ERROR;
+    }
+    u = r->upstream;
+    rc = ngx_http_parse_status_line(r, &u->buffer, &ctx->status);
+    if (rc == NGX_AGAIN) {
+        return rc
+    }
+    if (rc == NGX_ERROR) {
+        ngx_log_error(NGX_LOG_ERROR, r->connection->log, 0, "upstream end no valid HTTP/1.0 header");
+        r->http_version = NGX_HTTP_VERSION_9;
+        u->state->status = NGX_HTTP_OK;
         return NGX_OK;
+    }
+
+    if (u->state) {
+        u->state->status = ctx->status.code;
+    }
+    len = ctx->status.end - ctx->status.start;
+    u->header_in.status_line.len = len;
+    u->header_in.status_line.data = ngx_pnalloc(r->pool, len);
+    if (u->headers_in.status_line.data == NULL) {
+        return NGX_ERROR;
+    }
+    ngx_memcpy(u->headers_in.status_line.data, ctx->status.start, len);
+    u->process_header = mytest_upstream_process_header;
+
+    return mytest_upstream_process_header(r);
 }
