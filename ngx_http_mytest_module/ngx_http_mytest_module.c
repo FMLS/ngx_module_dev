@@ -56,20 +56,21 @@ static void* ngx_http_mytest_create_loc_conf(ngx_conf_t *cf)
     mycf->my_sec = NGX_CONF_UNSET;
     mycf->my_size = NGX_CONF_UNSET_SIZE;
 
-    mycf->upstream.connect_timeout = 60000;
-    mycf->upstream.send_timeout    = 60000;
-    mycf->upstream.read_timeout    = 60000;
-    mycf->upstream.store_access    = 0600;
+    //mycf->upstream.conf->
+    mycf->upstream.conf->connect_timeout = 60000;
+    mycf->upstream.conf->send_timeout    = 60000;
+    mycf->upstream.conf->read_timeout    = 60000;
+    mycf->upstream.conf->store_access    = 0600;
+    mycf->upstream.conf->bufs.num = 8;
+    mycf->upstream.conf->bufs.size = ngx_pagesize;
+    mycf->upstream.conf->buffer_size = 2 * ngx_pagesize;
+    mycf->upstream.conf->busy_buffers_size = 2 * ngx_pagesize;
+    mycf->upstream.conf->temp_file_write_size = 2 * ngx_pagesize;
+    mycf->upstream.conf->max_temp_file_size = 1024 * 1024 * 1024;
+    mycf->upstream.conf->hide_headers = NGX_CONF_UNSET_PTR;
+    mycf->upstream.conf->pass_headers = NGX_CONF_UNSET_PTR;
+
     mycf->upstream.buffering       = 0;
-    mycf->upstream.bufs.num = 8;
-    mycf->upstream.bufs.size = ngx_pagesize;
-    mycf->upstream.buffer_size = 2 * ngx_pagesize;
-    mycf->upstream.busy_buffers_size = 2 * ngx_pagesize;
-    mycf->upstream.temp_file_write_size = 2 * ngx_pagesize;
-    mycf->upstream.max_temp_file_size = 1024 * 1024 * 1024;
-    
-    mycf->upstream.hide_headers = NGX_CONF_UNSET_PTR;
-    mycf->upstream.pass_headers = NGX_CONF_UNSET_PTR;
 
 
     return mycf;
@@ -325,7 +326,7 @@ static char* ngx_http_mytest_merge_loc_conf(ngx_conf_t * cf, void * parent, void
     ngx_http_mytest_conf_t *prev = (ngx_http_mytest_conf_t *)parent;
     ngx_http_mytest_conf_t *conf = (ngx_http_mytest_conf_t *)child;
 
-    ngx_hash_init_t = hash;
+    ngx_hash_init_t  hash;
     hash.max_size = 100;
     hash.bucket_size = 1024;
     hash.name = "proxy_headers_hash";
@@ -336,6 +337,10 @@ static char* ngx_http_mytest_merge_loc_conf(ngx_conf_t * cf, void * parent, void
     }
 
     return NGX_CONF_OK;
+}
+
+static ngx_int_t mytest_upstream_process_header(ngx_http_request_t *r) {
+    return 0;
 }
 
 /*解析http响应头*/
@@ -350,10 +355,10 @@ static ngx_int_t mytest_process_status_line(ngx_http_request_t *r) {
     u = r->upstream;
     rc = ngx_http_parse_status_line(r, &u->buffer, &ctx->status);
     if (rc == NGX_AGAIN) {
-        return rc
+        return rc;
     }
     if (rc == NGX_ERROR) {
-        ngx_log_error(NGX_LOG_ERROR, r->connection->log, 0, "upstream end no valid HTTP/1.0 header");
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "upstream end no valid HTTP/1.0 header");
         r->http_version = NGX_HTTP_VERSION_9;
         u->state->status = NGX_HTTP_OK;
         return NGX_OK;
@@ -363,8 +368,8 @@ static ngx_int_t mytest_process_status_line(ngx_http_request_t *r) {
         u->state->status = ctx->status.code;
     }
     len = ctx->status.end - ctx->status.start;
-    u->header_in.status_line.len = len;
-    u->header_in.status_line.data = ngx_pnalloc(r->pool, len);
+    u->headers_in.status_line.len = len;
+    u->headers_in.status_line.data = ngx_pnalloc(r->pool, len);
     if (u->headers_in.status_line.data == NULL) {
         return NGX_ERROR;
     }
@@ -373,3 +378,4 @@ static ngx_int_t mytest_process_status_line(ngx_http_request_t *r) {
 
     return mytest_upstream_process_header(r);
 }
+
