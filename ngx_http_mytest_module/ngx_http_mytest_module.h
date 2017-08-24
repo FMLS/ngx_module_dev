@@ -17,7 +17,7 @@ typedef struct {
     ngx_uint_t    my_access;
     ngx_path_t*   my_path;
 
-    ngx_http_upstream_t upstream;
+    ngx_http_upstream_conf_t upstream;
 } ngx_http_mytest_conf_t;
 
 //typedef struct {

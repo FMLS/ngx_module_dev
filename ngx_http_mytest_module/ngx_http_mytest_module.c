@@ -51,6 +51,30 @@ static ngx_command_t ngx_http_mytest_commands[] = {
         0,
         NULL,
     },
+    {
+        ngx_string("ly_upstream_connect_timeout"),
+        NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+        ngx_conf_set_msec_slot,
+        NGX_HTTP_LOC_CONF_OFFSET,
+        offsetof(ngx_http_mytest_conf_t, upstream.connect_timeout),
+        NULL,
+    },
+    {
+        ngx_string("ly_upstream_send_timeout"),
+        NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+        ngx_conf_set_msec_slot,
+        NGX_HTTP_LOC_CONF_OFFSET,
+        offsetof(ngx_http_mytest_conf_t, upstream.send_timeout),
+        NULL,
+    },
+    {
+        ngx_string("ly_upstream_read_timeout"),
+        NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+        ngx_conf_set_msec_slot,
+        NGX_HTTP_LOC_CONF_OFFSET,
+        offsetof(ngx_http_mytest_conf_t, upstream.read_timeout),
+        NULL,
+    },
     ngx_null_command
 };
 
@@ -73,19 +97,18 @@ static void* ngx_http_mytest_create_loc_conf(ngx_conf_t *cf)
     mycf->my_sec = NGX_CONF_UNSET;
     mycf->my_size = NGX_CONF_UNSET_SIZE;
 
-    //mycf->upstream.conf->
-    mycf->upstream.conf->connect_timeout = 60000;
-    mycf->upstream.conf->send_timeout    = 60000;
-    mycf->upstream.conf->read_timeout    = 60000;
-    mycf->upstream.conf->store_access    = 0600;
-    mycf->upstream.conf->bufs.num = 8;
-    mycf->upstream.conf->bufs.size = ngx_pagesize;
-    mycf->upstream.conf->buffer_size = 2 * ngx_pagesize;
-    mycf->upstream.conf->busy_buffers_size = 2 * ngx_pagesize;
-    mycf->upstream.conf->temp_file_write_size = 2 * ngx_pagesize;
-    mycf->upstream.conf->max_temp_file_size = 1024 * 1024 * 1024;
-    mycf->upstream.conf->hide_headers = NGX_CONF_UNSET_PTR;
-    mycf->upstream.conf->pass_headers = NGX_CONF_UNSET_PTR;
+    mycf->upstream.connect_timeout = 60000;
+    mycf->upstream.send_timeout    = 60000;
+    mycf->upstream.read_timeout    = 60000;
+    mycf->upstream.store_access    = 0600;
+    mycf->upstream.bufs.num = 8;
+    mycf->upstream.bufs.size = ngx_pagesize;
+    mycf->upstream.buffer_size = 2 * ngx_pagesize;
+    mycf->upstream.busy_buffers_size = 2 * ngx_pagesize;
+    mycf->upstream.temp_file_write_size = 2 * ngx_pagesize;
+    mycf->upstream.max_temp_file_size = 1024 * 1024 * 1024;
+    mycf->upstream.hide_headers = NGX_CONF_UNSET_PTR;
+    mycf->upstream.pass_headers = NGX_CONF_UNSET_PTR;
 
     mycf->upstream.buffering       = 0;
 
@@ -323,7 +346,7 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r) {
 
     ngx_http_mytest_conf_t *mycf = (ngx_http_mytest_conf_t* )ngx_http_get_module_loc_conf(r, ngx_http_mytest_module);
     ngx_http_upstream_t *u = r->upstream;
-    u->conf = mycf->upstream.conf;
+    u->conf = &mycf->upstream; //必须设置 否则进程崩溃
     u->buffering = mycf->upstream.buffering;
     u->resolved = (ngx_http_upstream_resolved_t*)ngx_pcalloc(r->pool, sizeof(ngx_http_upstream_resolved_t));
     if (u->resolved == NULL) {
@@ -346,13 +369,17 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r) {
     //将地址设置到resolved成员中
     u->resolved->sockaddr = (struct sockaddr*)&backendSockAddr;
     u->resolved->socklen = sizeof(struct sockaddr_in);
-    u->resolved->naddrs = 1;
-
+    u->resolved->naddrs = 1; //地址个数
+    u->resolved->port = htons((in_port_t)80);
+    //设置回调方法
     u->create_request = mytest_upstream_create_request;
     u->process_header = mytest_process_status_line;
     u->finalize_request = mytest_upstream_finalize_request;
+    //引用计数+1
     r->main->count++;
+    //启动upstream机制
     ngx_http_upstream_init(r);
+    //框架暂停执行下一阶段
     return NGX_DONE;
 }
 
@@ -400,7 +427,7 @@ static char* ngx_http_mytest_merge_loc_conf(ngx_conf_t * cf, void * parent, void
     hash.bucket_size = 1024;
     hash.name = "proxy_headers_hash";
 
-    if (ngx_http_upstream_hide_headers_hash(cf, conf->upstream.conf, prev->upstream.conf,
+    if (ngx_http_upstream_hide_headers_hash(cf, &conf->upstream, &prev->upstream,
             ngx_http_proxy_hide_headers, &hash) != NGX_OK) {
         return NGX_CONF_ERROR;
     }
