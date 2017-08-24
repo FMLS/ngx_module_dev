@@ -354,7 +354,7 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r) {
     }
 
     static struct sockaddr_in backendSockAddr;
-    struct hostent *pHost = gethostbyname((char*) "www.google.com");
+    struct hostent *pHost = gethostbyname((char*) "www.csdn.net");
     if (pHost == NULL) {
 
     }
@@ -395,7 +395,7 @@ void ngx_pool_cleanup_file_m(void *data) {
 static ngx_int_t mytest_upstream_create_request(ngx_http_request_t * r) {
 
     static ngx_str_t backendQueryLine = 
-        ngx_string("GET /searchq=%V HTTP/1.1\r\nHOST: www.google.com\r\nConnection: close\r\n\r\n");
+        ngx_string("GET / HTTP/1.1\r\nHOST: www.csdn.net\r\nConnection: close\r\n\r\n");
 
     ngx_int_t queryLineLen = backendQueryLine.len + r->args.len - 2;
     ngx_buf_t *b = ngx_create_temp_buf(r->pool, queryLineLen);
