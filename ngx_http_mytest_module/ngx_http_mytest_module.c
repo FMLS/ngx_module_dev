@@ -397,14 +397,17 @@ static ngx_int_t mytest_upstream_create_request(ngx_http_request_t * r) {
     static ngx_str_t backendQueryLine = 
         ngx_string("GET / HTTP/1.1\r\nHOST: www.csdn.net\r\nConnection: close\r\n\r\n");
 
-    ngx_int_t queryLineLen = backendQueryLine.len + r->args.len - 2;
+    //ngx_int_t queryLineLen = backendQueryLine.len + r->args.len - 2;
+    //ngx_int_t queryLineLen = backendQueryLine.len + r->args.len;
+    ngx_int_t queryLineLen = backendQueryLine.len;// + r->args.len;
     ngx_buf_t *b = ngx_create_temp_buf(r->pool, queryLineLen);
     if (b == NULL) {
         return NGX_ERROR;
     }
     b->last = b->pos + queryLineLen;
-    ngx_snprintf(b->pos, queryLineLen,
-        (char*)backendQueryLine.data, &r->args);
+    //ngx_snprintf(b->pos, queryLineLen,
+    //    (char*)backendQueryLine.data, &r->args);
+    ngx_memcpy(b->pos, backendQueryLine.data, backendQueryLine.len);
     r->upstream->request_bufs = ngx_alloc_chain_link(r->pool);
     if (r->upstream->request_bufs == NULL) {
         return NGX_ERROR;
